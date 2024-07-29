@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-if="isAuthReady">
     <header class="bg-blue-900 text-white p-4">
       <div class="container mx-auto">
         <div class="flex flex-col items-start mb-2">
@@ -14,7 +14,7 @@
               >All Podcasts</NuxtLink
             >
             <NuxtLink
-              v-if="authStore.isAdmin()"
+              v-if="isAdmin"
               to="/admin"
               class="text-white hover:text-gray-300"
               >Admin</NuxtLink
@@ -93,23 +93,61 @@
       :mode="authModalMode"
       @close="closeAuthModal"
       @auth-success="handleAuthSuccess"
+      @forgot-password="openForgotPasswordModal"
+    />
+    <ForgotPasswordModal
+      v-if="isForgotPasswordModalOpen"
+      :is-open="isForgotPasswordModalOpen"
+      @close="closeForgotPasswordModal"
+      @reset-success="handleResetSuccess"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useAuthStore } from "~/stores/auth";
+import type { UserRole } from "~/stores/auth";
+import AuthModal from "~/components/AuthModal.vue";
+import ForgotPasswordModal from "~/components/ForgotPasswordModal.vue";
+import { storeToRefs } from "pinia";
 
 const authStore = useAuthStore();
+const { isAdmin } = storeToRefs(authStore);
+const isAuthReady = ref(false);
 
 const isDropdownOpen = ref(false);
 const isAuthModalOpen = ref(false);
+const isForgotPasswordModalOpen = ref(false);
 const authModalTitle = ref("");
 
-// Define a type for the auth modal mode
 type AuthModalMode = "login" | "register";
 const authModalMode = ref<AuthModalMode>("login");
+
+const showAdminLink = computed(() => {
+  return authStore.checkIsAdmin();
+});
+
+onMounted(async () => {
+  console.log("Default layout mounted");
+  await authStore.initializeAuth();
+  isAuthReady.value = true;
+  console.log("Auth ready. isAdmin:", authStore.checkIsAdmin());
+});
+
+watch(
+  () => authStore.user,
+  (newUser) => {
+    console.log("User changed in auth store:", newUser);
+  }
+);
+
+watch(
+  () => authStore.userRole,
+  (newRole: UserRole) => {
+    console.log("Role changed in auth store:", newRole);
+  }
+);
 
 const openLoginModal = () => {
   authModalTitle.value = "Login";
@@ -127,8 +165,22 @@ const closeAuthModal = () => {
   isAuthModalOpen.value = false;
 };
 
+const openForgotPasswordModal = () => {
+  closeAuthModal();
+  isForgotPasswordModalOpen.value = true;
+};
+
+const closeForgotPasswordModal = () => {
+  isForgotPasswordModalOpen.value = false;
+};
+
 const handleAuthSuccess = () => {
   closeAuthModal();
+};
+
+const handleResetSuccess = () => {
+  closeForgotPasswordModal();
+  // You might want to show a success message or redirect the user
 };
 
 const toggleDropdown = () => {
@@ -136,8 +188,14 @@ const toggleDropdown = () => {
 };
 
 const logout = async () => {
-  await authStore.logout();
-  isDropdownOpen.value = false;
+  try {
+    await authStore.logout();
+    isDropdownOpen.value = false;
+    // The page will automatically refresh and redirect to home
+  } catch (error) {
+    console.error("Logout failed:", error);
+    // Handle error (e.g., show an error message to the user)
+  }
 };
 
 // Close dropdown when clicking outside

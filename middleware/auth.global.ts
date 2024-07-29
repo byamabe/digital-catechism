@@ -1,3 +1,4 @@
+// middleware/auth.globals.ts
 // @ts-ignore
 export default defineNuxtRouteMiddleware((to) => {
   // @ts-ignore
